@@ -1,0 +1,264 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Zap, 
+  RefreshCw, 
+  IndianRupee, 
+  Leaf, 
+  Activity, 
+  TrendingUp, 
+  Sun, 
+  Battery, 
+  TerminalSquare,
+  AlertTriangle
+} from 'lucide-react';
+
+// --- API CONFIGURATION ---
+const API_ENDPOINT = 'http://127.0.0.1:5000/api/telemetry';
+const POLLING_INTERVAL_MS = 5000;
+
+export default function EcoGridDashboard() {
+  const [telemetry, setTelemetry] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  // --- DATA FETCHING LOGIC ---
+  const fetchTelemetry = useCallback(async (manual = false) => {
+    if (manual) setIsSyncing(true);
+    
+    try {
+      const response = await fetch(API_ENDPOINT);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      setTelemetry(data);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to fetch EcoGrid telemetry:", err);
+      setError("Backend connection lost. Ensure the Flask server is running at http://127.0.0.1:5000.");
+    } finally {
+      setLoading(false);
+      if (manual) setTimeout(() => setIsSyncing(false), 500); // Visual feedback duration
+    }
+  }, []);
+
+  // --- POLLING ARCHITECTURE ---
+  useEffect(() => {
+    // Initial fetch
+    fetchTelemetry();
+
+    // Set up 5-second polling interval
+    const intervalId = setInterval(() => {
+      fetchTelemetry();
+    }, POLLING_INTERVAL_MS);
+
+    // Cleanup on unmount
+    return () => clearInterval(intervalId);
+  }, [fetchTelemetry]);
+
+  // --- HELPER FUNCTIONS ---
+  const getBatteryColor = (level) => {
+    if (level < 20) return 'bg-red-500';
+    if (level < 50) return 'bg-yellow-500';
+    return 'bg-[#00ff00]';
+  };
+
+  // --- RENDER: SKELETON WIREFRAMES ---
+  if (loading && !telemetry) {
+    return (
+      <div className="min-h-screen bg-[#0d0d0d] text-white p-8 flex flex-col gap-6">
+        <div className="animate-pulse h-12 bg-[#1e1e1e] rounded-md w-1/3 mb-4"></div>
+        <div className="flex gap-6">
+          <div className="animate-pulse h-32 bg-[#1e1e1e] rounded-md flex-1"></div>
+          <div className="animate-pulse h-32 bg-[#1e1e1e] rounded-md flex-1"></div>
+        </div>
+        <div className="grid grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse h-40 bg-[#1e1e1e] rounded-md"></div>
+          ))}
+        </div>
+        <div className="animate-pulse h-64 bg-[#050505] border border-[#1e1e1e] rounded-md mt-4"></div>
+      </div>
+    );
+  }
+
+  // --- RENDER: MAIN DASHBOARD ---
+  return (
+    <div className="min-h-screen bg-[#0d0d0d] text-white font-sans p-6 selection:bg-[#00ff00] selection:text-black">
+      
+      {/* 1. TOP HEADER BAR */}
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 border-b border-[#1e1e1e] pb-4">
+        <div className="flex items-center gap-3">
+          <Zap className="text-[#00ff00] w-8 h-8" />
+          <h1 className="text-2xl font-bold tracking-tight text-white">
+            EcoGrid <span className="text-[#1e1e1e] mx-2">|</span> AI Microgrid Management Console
+          </h1>
+        </div>
+        
+        <div className="flex items-center gap-6">
+          {/* Live Indicator */}
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              {!error && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00ff00] opacity-75"></span>}
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${error ? 'bg-red-500' : 'bg-[#00ff00]'}`}></span>
+            </span>
+            <span className="text-sm text-gray-400 uppercase tracking-widest font-mono">
+              {error ? 'System Offline' : 'Live Data'}
+            </span>
+          </div>
+
+          {/* Manual Sync Button */}
+          <button 
+            onClick={() => fetchTelemetry(true)}
+            className="flex items-center gap-2 bg-[#1e1e1e] hover:bg-[#2a2a2a] transition-colors px-4 py-2 rounded border border-[#333] text-sm font-mono text-[#00ff00]"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            SYNC
+          </button>
+        </div>
+      </header>
+
+      {/* ERROR BANNER */}
+      {error && (
+        <div className="bg-red-900/20 border-l-4 border-red-500 p-4 mb-8 flex items-center gap-3 rounded-r shadow-lg">
+          <AlertTriangle className="text-red-500 w-6 h-6" />
+          <p className="text-red-200 font-mono text-sm">{error}</p>
+        </div>
+      )}
+
+      {telemetry && (
+        <div className="flex flex-col gap-6">
+          
+          {/* 2. TOP ROW METRIC CARDS (Savings & Carbon) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-[#1e1e1e] p-6 rounded-lg border border-[#2a2a2a] shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <IndianRupee className="w-24 h-24 text-[#00ff00]" />
+              </div>
+              <p className="text-gray-400 text-sm uppercase tracking-wider mb-2 flex items-center gap-2">
+                <IndianRupee className="w-4 h-4" /> Total System Savings
+              </p>
+              <h2 className="text-5xl font-light text-white font-mono">
+                ₹{telemetry.launchpad_status.total_savings_inr.toFixed(2)}
+              </h2>
+            </div>
+            
+            <div className="bg-[#1e1e1e] p-6 rounded-lg border border-[#2a2a2a] shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Leaf className="w-24 h-24 text-[#00ff00]" />
+              </div>
+              <p className="text-gray-400 text-sm uppercase tracking-wider mb-2 flex items-center gap-2">
+                <Leaf className="w-4 h-4" /> Total Carbon Offset
+              </p>
+              <h2 className="text-5xl font-light text-white font-mono">
+                {telemetry.launchpad_status.carbon_saved_kg.toFixed(2)} <span className="text-xl text-gray-500">kg CO₂</span>
+              </h2>
+            </div>
+          </div>
+
+          {/* 3. MIDDLE GRID (Telemetry Widgets) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* Live Demand */}
+            <div className="bg-[#1e1e1e] p-5 rounded-lg border border-[#2a2a2a] flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-gray-400 text-sm">Live Demand</p>
+                <Activity className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <p className="text-3xl font-bold font-mono text-white">
+                  {telemetry.metrics.facility_demand.toFixed(2)} <span className="text-sm text-gray-500">kWh</span>
+                </p>
+              </div>
+            </div>
+
+            {/* 1-Hour Forecast */}
+            <div className="bg-[#1e1e1e] p-5 rounded-lg border border-[#2a2a2a] flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-gray-400 text-sm">1-Hr Forecast</p>
+                <TrendingUp className="w-5 h-5 text-purple-400" />
+              </div>
+              <div>
+                <p className="text-3xl font-bold font-mono text-white">
+                  {telemetry.metrics.future_macro_forecast.toFixed(2)} <span className="text-sm text-gray-500">kWh</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Solar Output */}
+            <div className="bg-[#1e1e1e] p-5 rounded-lg border border-[#2a2a2a] flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-gray-400 text-sm">Solar Generation</p>
+                <Sun className="w-5 h-5 text-yellow-400" />
+              </div>
+              <div>
+                <p className="text-3xl font-bold font-mono text-white">
+                  {telemetry.metrics.solar_generation.toFixed(2)} <span className="text-sm text-gray-500">kWh</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Battery Reserve */}
+            <div className="bg-[#1e1e1e] p-5 rounded-lg border border-[#2a2a2a] flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-gray-400 text-sm">Battery Reserve</p>
+                <Battery className="w-5 h-5 text-gray-400" />
+              </div>
+              <div>
+                <div className="flex justify-between items-end mb-2">
+                  <p className="text-3xl font-bold font-mono text-white">
+                    {telemetry.metrics.battery_reserve.toFixed(1)}%
+                  </p>
+                </div>
+                {/* Dynamic Progress Bar */}
+                <div className="w-full bg-[#050505] rounded-full h-2.5 mb-1 overflow-hidden">
+                  <div 
+                    className={`h-2.5 rounded-full transition-all duration-500 ease-out ${getBatteryColor(telemetry.metrics.battery_reserve)}`} 
+                    style={{ width: `${telemetry.metrics.battery_reserve}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* 4. BOTTOM LAYOUT (Autonomous Agent Terminal) */}
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <TerminalSquare className="w-5 h-5 text-gray-400" />
+              <h3 className="text-sm font-semibold tracking-wider text-gray-400 uppercase">
+                🤖 AI Optimization Core Logs 
+                <span className="ml-3 text-[#00ff00] font-mono text-xs border border-[#00ff00]/30 bg-[#00ff00]/10 px-2 py-0.5 rounded">
+                  STATE: {telemetry.agent.action}
+                </span>
+              </h3>
+            </div>
+            
+            <div className="bg-[#050505] p-6 rounded-lg border border-[#1e1e1e] h-64 overflow-y-auto shadow-inner relative group">
+              {/* Scanline effect for cyberpunk aesthetic */}
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0),rgba(255,255,255,0)_50%,rgba(0,0,0,0.1)_50%,rgba(0,0,0,0.1))] bg-[length:100%_4px] z-10 opacity-20"></div>
+              
+              <ul className="font-mono text-sm text-[#00ff00] leading-relaxed space-y-1 relative z-20">
+                {telemetry.agent.logs.map((log, index) => {
+                  // Slight parsing to highlight tags like [PERCEIVE], [REASON], [ACT] for better scannability
+                  const formattedLog = log.replace(/(\[.*?\])/g, '<span class="text-white opacity-70">$1</span>');
+                  
+                  return (
+                    <li 
+                      key={index} 
+                      className="break-words"
+                      dangerouslySetInnerHTML={{ __html: `> ${formattedLog}` }}
+                    />
+                  );
+                })}
+                {/* Blinking Cursor */}
+                <li className="animate-pulse inline-block mt-1 w-2.5 h-4 bg-[#00ff00]"></li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      )}
+    </div>
+  );
+}

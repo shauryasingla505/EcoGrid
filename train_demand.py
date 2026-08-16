@@ -5,11 +5,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error
 
-# Load Dataset
+# Load Dataset - Optimized with nrows to save RAM and time
+print("Loading data...")
 df = pd.read_csv(
-    "datasets/household_power_consumption.txt",
+    r"D:\ecogrid\datasets\household_power_consumption.txt",
     sep=";",
-    low_memory=False
+    low_memory=False,
+    nrows=100000  # <--- CRITICAL: Prevents your laptop from crashing/freezing
 )
 
 # Clean Dataset
@@ -51,12 +53,13 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-print("Training model...")
+print(f"Training model on {len(X_train)} rows...")
 
-# Model
+# Model - Optimized with parallel processing cores
 model = RandomForestRegressor(
     n_estimators=50,
-    random_state=42
+    random_state=42,
+    n_jobs=-1  # <--- CRITICAL: Uses all CPU cores to speed up training dramatically
 )
 
 model.fit(X_train, y_train)
@@ -71,8 +74,8 @@ mae = mean_absolute_error(y_test, predictions)
 print("\nResults")
 print("R2 Score:", r2)
 print("MAE:", mae)
-os.makedirs("models", exist_ok=True)
 
+os.makedirs("models", exist_ok=True)
 joblib.dump(model, "models/demand_model.pkl")
 
-print("\nModel saved successfully!")
+print("\nModel saved successfully at models/demand_model.pkl!")
